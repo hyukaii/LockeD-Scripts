@@ -1,0 +1,41 @@
+using UnityEngine;
+using System.Collections;
+
+public class PuzzleSolved : MonoBehaviour
+{
+    [Header("References")]
+    public GameObject zoomPanelPadlock;
+    public GameObject wallDown;
+    public SlidingPuzzle slidingPuzzle;
+
+    [Header("Padlock Animation")]
+    public SpriteRenderer padlockRenderer;
+    public Sprite openPadlockSprite;
+    public float delayBeforeClose = 1.5f;
+
+    void Start()
+    {
+        slidingPuzzle.OnPuzzleSolved += HandlePuzzleSolved;
+    }
+
+    void OnDestroy()
+    {
+        slidingPuzzle.OnPuzzleSolved -= HandlePuzzleSolved;
+    }
+
+    void HandlePuzzleSolved()
+    {
+        if (padlockRenderer != null && openPadlockSprite != null)
+            padlockRenderer.sprite = openPadlockSprite;
+
+        StartCoroutine(WaitThenOpenDoor());
+    }
+
+    IEnumerator WaitThenOpenDoor()
+    {
+        yield return new WaitForSecondsRealtime(delayBeforeClose);
+        zoomPanelPadlock.SetActive(false);
+        Time.timeScale = 1f;
+        wallDown.SetActive(false);
+    }
+}
