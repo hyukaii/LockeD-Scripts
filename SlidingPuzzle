@@ -1,0 +1,196 @@
+using UnityEngine;
+using UnityEngine.UI;
+using System.Collections.Generic;
+
+public class SlidingPuzzle : MonoBehaviour
+{
+    [Header("Puzzle Settings")]
+    public Sprite puzzleImage;
+    public GameObject piecePrefab;
+    public Transform puzzleContainer;
+    public int gridSize = 3;
+    public float pieceSize = 80f;
+
+    private List<int> board = new List<int>();
+    private Dictionary<int, GameObject> tileObjects = new Dictionary<int, GameObject>();
+    private int emptyIndex;
+
+    public event System.Action OnPuzzleSolved;
+
+    void OnEnable()
+    {
+        GeneratePuzzle();
+    }
+
+    void GeneratePuzzle()
+    {
+        foreach (var kvp in tileObjects)
+            Destroy(kvp.Value);
+        tileObjects.Clear();
+        board.Clear();
+
+        List<int> tiles = new List<int>();
+        for (int i = 0; i < gridSize * gridSize - 1; i++)
+            tiles.Add(i);
+
+        ShuffleBoard(tiles);
+
+        if (!IsSolvable(tiles))
+        {
+            int temp = tiles[0];
+            tiles[0] = tiles[1];
+            tiles[1] = temp;
+        }
+
+        board.Clear();
+        foreach (int t in tiles)
+            board.Add(t);
+        board.Add(gridSize * gridSize - 1);
+
+        emptyIndex = board.Count - 1;
+        SpawnPieces();
+    }
+
+    void ShuffleBoard(List<int> tiles)
+    {
+        for (int i = tiles.Count - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            int temp = tiles[i];
+            tiles[i] = tiles[j];
+            tiles[j] = temp;
+        }
+    }
+
+    bool IsSolvable(List<int> tiles)
+    {
+        int inversions = 0;
+        for (int i = 0; i < tiles.Count - 1; i++)
+            for (int j = i + 1; j < tiles.Count; j++)
+                if (tiles[i] > tiles[j])
+                    inversions++;
+        return inversions % 2 == 0;
+    }
+
+    void SpawnPieces()
+    {
+        int total = gridSize * gridSize;
+
+        for (int boardPos = 0; boardPos < total; boardPos++)
+        {
+            int tileValue = board[boardPos];
+            if (tileValue == total - 1) continue;
+
+            GameObject piece = Instantiate(piecePrefab, puzzleContainer);
+
+            RectTransform rt = piece.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(pieceSize, pieceSize);
+            rt.anchoredPosition = GetGridPos(boardPos);
+
+            Image img = piece.GetComponent<Image>();
+            img.sprite = CropSprite(tileValue);
+
+            tileObjects[tileValue] = piece;
+
+            Button btn = piece.GetComponent<Button>();
+            btn.onClick.RemoveAllListeners();
+            int captured = boardPos;
+            btn.onClick.AddListener(() => OnPieceClick(captured));
+        }
+    }
+
+    void RebuildListeners()
+    {
+        int total = gridSize * gridSize;
+        for (int boardPos = 0; boardPos < total; boardPos++)
+        {
+            int tileValue = board[boardPos];
+            if (tileValue == total - 1) continue;
+            if (!tileObjects.ContainsKey(tileValue)) continue;
+
+            Button btn = tileObjects[tileValue].GetComponent<Button>();
+            btn.onClick.RemoveAllListeners();
+            int captured = boardPos;
+            btn.onClick.AddListener(() => OnPieceClick(captured));
+        }
+    }
+
+    Sprite CropSprite(int tileIndex)
+    {
+        int col = tileIndex % gridSize;
+        int row = tileIndex / gridSize;
+
+        float w = puzzleImage.texture.width / (float)gridSize;
+        float h = puzzleImage.texture.height / (float)gridSize;
+
+        Rect rect = new Rect(col * w, puzzleImage.texture.height - (row + 1) * h, w, h);
+        return Sprite.Create(puzzleImage.texture, rect, new Vector2(0.5f, 0.5f));
+    }
+
+    Vector2 GetGridPos(int idx)
+    {
+        int col = idx % gridSize;
+        int row = idx / gridSize;
+        float startX = -(gridSize - 1) * pieceSize / 2f;
+        float startY = (gridSize - 1) * pieceSize / 2f;
+        return new Vector2(startX + col * pieceSize, startY - row * pieceSize);
+    }
+
+    void OnPieceClick(int boardPos)
+    {
+        if (IsAdjacent(boardPos, emptyIndex))
+        {
+            int tileValue = board[boardPos];
+            tileObjects[tileValue].GetComponent<RectTransform>().anchoredPosition = GetGridPos(emptyIndex);
+
+            board[emptyIndex] = tileValue;
+            board[boardPos] = gridSize * gridSize - 1;
+            emptyIndex = boardPos;
+
+            RebuildListeners();
+            CheckWin();
+        }
+    }
+
+    bool IsAdjacent(int a, int b)
+    {
+        int rowA = a / gridSize, colA = a % gridSize;
+        int rowB = b / gridSize, colB = b % gridSize;
+        return (Mathf.Abs(rowA - rowB) + Mathf.Abs(colA - colB)) == 1;
+    }
+
+    bool CheckWin()
+    {
+        for (int i = 0; i < board.Count; i++)
+            if (board[i] != i)
+                return false;
+
+        OnPuzzleSolved?.Invoke();
+        return true;
+    }
+
+    public List<int> GetBoard() => new List<int>(board);
+    public int GetEmptyIndex() => emptyIndex;
+    public GameObject GetPiece(int tileValue)
+    {
+        if (tileObjects.ContainsKey(tileValue))
+            return tileObjects[tileValue];
+        return null;
+    }
+
+    public void MovePiece(int boardPos)
+    {
+        if (boardPos < 0 || boardPos >= board.Count) return;
+        if (!IsAdjacent(boardPos, emptyIndex)) return;
+
+        int tileValue = board[boardPos];
+        tileObjects[tileValue].GetComponent<RectTransform>().anchoredPosition = GetGridPos(emptyIndex);
+
+        board[emptyIndex] = tileValue;
+        board[boardPos] = gridSize * gridSize - 1;
+        emptyIndex = boardPos;
+
+        RebuildListeners();
+        CheckWin();
+    }
+}
