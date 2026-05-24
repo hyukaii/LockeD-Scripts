@@ -1,0 +1,155 @@
+using UnityEngine;
+
+public class DarknessOverlay : MonoBehaviour
+{
+    [Header("References")]
+    public Transform player;
+
+    [Header("Light Settings")]
+
+    [Range(0.05f, 0.5f)]
+    public float lightRadius = 0.12f;
+
+    [Range(0.01f, 0.3f)]
+    public float softEdge = 0.06f;
+
+    [Header("Darkness")]
+
+    // alpha 1 = sangat gelap
+    public Color darknessColor = new Color(0f, 0f, 0f, 1f);
+
+    private SpriteRenderer overlayRenderer;
+    private Texture2D overlayTexture;
+
+    // 512 udah cukup smooth & ringan
+    private int textureSize = 512;
+
+    float lastRadius;
+    float lastSoftEdge;
+
+    void Start()
+    {
+        CreateOverlay();
+        UpdateTexture();
+
+        lastRadius = lightRadius;
+        lastSoftEdge = softEdge;
+    }
+
+    void Update()
+    {
+        // update texture cuma kalau setting berubah
+        if (lastRadius != lightRadius || lastSoftEdge != softEdge)
+        {
+            UpdateTexture();
+
+            lastRadius = lightRadius;
+            lastSoftEdge = softEdge;
+        }
+    }
+
+    void CreateOverlay()
+    {
+        GameObject overlay = new GameObject("DarknessOverlay");
+
+        overlayRenderer = overlay.AddComponent<SpriteRenderer>();
+
+        overlayRenderer.sortingOrder = 9999;
+        overlayRenderer.color = Color.white;
+
+        overlayTexture = new Texture2D(
+            textureSize,
+            textureSize,
+            TextureFormat.RGBA32,
+            false
+        );
+
+        overlayTexture.filterMode = FilterMode.Bilinear;
+        overlayTexture.wrapMode = TextureWrapMode.Clamp;
+
+        Sprite sprite = Sprite.Create(
+            overlayTexture,
+            new Rect(0, 0, textureSize, textureSize),
+            new Vector2(0.5f, 0.5f),
+            100f
+        );
+
+        overlayRenderer.sprite = sprite;
+    }
+
+    void UpdateTexture()
+    {
+        Color[] pixels = new Color[textureSize * textureSize];
+
+        Vector2 center = new Vector2(
+            textureSize * 0.5f,
+            textureSize * 0.5f
+        );
+
+        float half = textureSize * 0.5f;
+
+        float innerRadius = half * lightRadius;
+
+        float outerRadius = innerRadius + (half * softEdge);
+
+        for (int y = 0; y < textureSize; y++)
+        {
+            for (int x = 0; x < textureSize; x++)
+            {
+                float dist = Vector2.Distance(
+                    new Vector2(x, y),
+                    center
+                );
+
+                float t = Mathf.InverseLerp(
+                    innerRadius,
+                    outerRadius,
+                    dist
+                );
+
+                t = Mathf.SmoothStep(0f, 1f, t);
+
+                pixels[y * textureSize + x] = new Color(
+                    darknessColor.r,
+                    darknessColor.g,
+                    darknessColor.b,
+                    darknessColor.a * t
+                );
+            }
+        }
+
+        overlayTexture.SetPixels(pixels);
+        overlayTexture.Apply(false);
+    }
+
+    void LateUpdate()
+    {
+        if (player == null || overlayRenderer == null)
+            return;
+
+        // posisi tepat di player
+        overlayRenderer.transform.position = new Vector3(
+            player.position.x,
+            player.position.y,
+            player.position.z + 1f
+        );
+
+        Camera cam = Camera.main;
+
+        if (cam != null)
+        {
+            float camHeight = cam.orthographicSize * 2f;
+            float camWidth = camHeight * cam.aspect;
+
+            float spriteWorldSize = textureSize / 100f;
+
+            // satu scale supaya lingkaran tetap bulat
+            float scale =
+                Mathf.Max(camWidth, camHeight) * 2f
+                / spriteWorldSize;
+
+            overlayRenderer.transform.localScale =
+                new Vector3(scale, scale, 1f);
+        }
+    }
+}
