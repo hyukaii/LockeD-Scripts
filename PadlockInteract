@@ -1,0 +1,56 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+public class PadlockInteract : MonoBehaviour
+{
+    [Header("Zoom UI")]
+    public GameObject zoomPanel;
+    public Image zoomImage;
+    public Sprite padlockSprite;
+
+    [Header("Settings")]
+    public float interactDistance = 2f;
+    public Transform player;
+    public Transform padlockCenter;
+
+    private bool playerNearby = false;
+
+    public bool IsNearby() => playerNearby;
+
+    void Start()
+    {
+        zoomPanel.SetActive(false);
+    }
+
+    void Update()
+    {
+        if (player != null && padlockCenter != null)
+        {
+            float distance = Vector2.Distance(padlockCenter.position, player.position);
+            playerNearby = distance <= interactDistance;
+        }
+
+        if (Input.GetKeyDown(KeyCode.E))
+        {
+            if (zoomPanel.activeSelf)
+                CloseZoom();
+            else if (playerNearby)
+                OpenZoom();
+        }
+
+        if (zoomPanel.activeSelf && Input.GetKeyDown(KeyCode.Escape))
+            CloseZoom();
+    }
+
+    void OpenZoom()
+    {
+        zoomPanel.SetActive(true);
+        Time.timeScale = 0f;
+    }
+
+    void CloseZoom()
+    {
+        zoomPanel.SetActive(false);
+        Time.timeScale = 1f;
+    }
+}
