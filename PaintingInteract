@@ -1,0 +1,64 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+public class PaintingInteract : MonoBehaviour
+{
+    [Header("Zoom UI")]
+    public GameObject zoomPanel;
+    public Image zoomImage;
+    public Sprite paintingSprite;
+
+    [Header("Settings")]
+    public float interactDistance = 2f;
+    public Transform player;
+    public Transform paintingCenter;
+
+    private bool playerNearby = false;
+
+    void Start()
+    {
+        zoomPanel.SetActive(false);
+    }
+
+    void Update()
+    {
+        if (player != null && paintingCenter != null)
+        {
+            float distance = Vector2.Distance(paintingCenter.position, player.position);
+            playerNearby = distance <= interactDistance;
+        }
+
+        if (Input.GetKeyDown(KeyCode.E))
+        {
+            if (zoomPanel.activeSelf)
+                CloseZoom();
+            else if (playerNearby && !IsOtherInteractNearby())
+                OpenZoom();
+        }
+
+        if (zoomPanel.activeSelf && (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(0)))
+            CloseZoom();
+    }
+
+    bool IsOtherInteractNearby()
+    {
+        // Kalau ada interactable lain yang lebih deket, jangan buka lukisan
+        PadlockInteract padlock = FindObjectOfType<PadlockInteract>();
+        if (padlock != null && padlock.IsNearby())
+            return true;
+        return false;
+    }
+
+    void OpenZoom()
+    {
+        zoomImage.sprite = paintingSprite;
+        zoomPanel.SetActive(true);
+        Time.timeScale = 0f;
+    }
+
+    void CloseZoom()
+    {
+        zoomPanel.SetActive(false);
+        Time.timeScale = 1f;
+    }
+}
