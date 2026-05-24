@@ -1,0 +1,169 @@
+using UnityEngine;
+using UnityEngine.UI;
+using System.Collections;
+using System.Collections.Generic;
+
+public class PuzzleAI : MonoBehaviour
+{
+    private SlidingPuzzle slidingPuzzle;
+
+    [Header("UI")]
+    public Button solveButton;
+
+    [Header("Settings")]
+    public float moveDelay = 0.3f; // delay antar gerakan
+
+    void Start()
+    {
+        slidingPuzzle = GetComponent<SlidingPuzzle>();
+        solveButton.onClick.AddListener(StartSolve);
+    }
+
+    void StartSolve()
+    {
+        solveButton.interactable = false;
+        List<int> currentBoard = slidingPuzzle.GetBoard();
+        int gridSize = slidingPuzzle.gridSize;
+
+        List<int> solution = AStar(currentBoard, gridSize);
+
+        if (solution != null && solution.Count > 1)
+        {
+            StartCoroutine(ExecuteSolution(solution));
+        }
+        else
+        {
+            Debug.Log("Puzzle udah selesai!");
+            solveButton.interactable = true;
+        }
+    }
+
+    IEnumerator ExecuteSolution(List<int> solution)
+    {
+        // solution[0] = state awal, skip
+        for (int i = 1; i < solution.Count; i++)
+        {
+            int boardPos = solution[i];
+            slidingPuzzle.MovePiece(boardPos);
+            yield return new WaitForSecondsRealtime(moveDelay);
+        }
+
+        Debug.Log("Puzzle selesai! Gembok terbuka!");
+        solveButton.interactable = true;
+    }
+
+    List<int> AStar(List<int> startBoard, int gridSize)
+    {
+        int total = gridSize * gridSize;
+        var goalBoard = new List<int>();
+        for (int i = 0; i < total; i++) goalBoard.Add(i);
+
+        var openSet = new List<AStarNode>();
+        var closedSet = new HashSet<string>();
+
+        int startEmpty = startBoard.IndexOf(total - 1);
+        var startNode = new AStarNode(startBoard, startEmpty, 0, null, -1);
+        startNode.H = Manhattan(startBoard, gridSize);
+        openSet.Add(startNode);
+
+        int maxIterations = 10000;
+        int iterations = 0;
+
+        while (openSet.Count > 0 && iterations < maxIterations)
+        {
+            iterations++;
+            openSet.Sort((a, b) => a.F.CompareTo(b.F));
+            AStarNode current = openSet[0];
+            openSet.RemoveAt(0);
+
+            string stateKey = string.Join(",", current.Board);
+            if (closedSet.Contains(stateKey)) continue;
+            closedSet.Add(stateKey);
+
+            if (IsGoal(current.Board, goalBoard))
+                return ReconstructPath(current);
+
+            int[] directions = { -gridSize, gridSize, -1, 1 };
+            int emptyPos = current.EmptyIndex;
+
+            foreach (int dir in directions)
+            {
+                int newPos = emptyPos + dir;
+                if (newPos < 0 || newPos >= total) continue;
+                if (dir == -1 && emptyPos % gridSize == 0) continue;
+                if (dir == 1 && emptyPos % gridSize == gridSize - 1) continue;
+
+                var newBoard = new List<int>(current.Board);
+                newBoard[emptyPos] = newBoard[newPos];
+                newBoard[newPos] = total - 1;
+
+                string newKey = string.Join(",", newBoard);
+                if (closedSet.Contains(newKey)) continue;
+
+                int g = current.G + 1;
+                int h = Manhattan(newBoard, gridSize);
+                var neighbor = new AStarNode(newBoard, newPos, g, current, newPos);
+                neighbor.H = h;
+                openSet.Add(neighbor);
+            }
+        }
+
+        return null;
+    }
+
+    int Manhattan(List<int> board, int gridSize)
+    {
+        int total = gridSize * gridSize;
+        int distance = 0;
+        for (int i = 0; i < total; i++)
+        {
+            int val = board[i];
+            if (val == total - 1) continue;
+            int targetRow = val / gridSize;
+            int targetCol = val % gridSize;
+            int currentRow = i / gridSize;
+            int currentCol = i % gridSize;
+            distance += Mathf.Abs(targetRow - currentRow) + Mathf.Abs(targetCol - currentCol);
+        }
+        return distance;
+    }
+
+    bool IsGoal(List<int> board, List<int> goal)
+    {
+        for (int i = 0; i < board.Count; i++)
+            if (board[i] != goal[i]) return false;
+        return true;
+    }
+
+    List<int> ReconstructPath(AStarNode node)
+    {
+        var path = new List<int>();
+        while (node != null)
+        {
+            path.Insert(0, node.MovedPos);
+            node = node.Parent;
+        }
+        return path;
+    }
+
+    class AStarNode
+    {
+        public List<int> Board;
+        public int EmptyIndex;
+        public int G;
+        public int H;
+        public int F => G + H;
+        public AStarNode Parent;
+        public int MovedPos;
+
+        public AStarNode(List<int> board, int emptyIndex, int g, AStarNode parent, int movedPos)
+        {
+            Board = board;
+            EmptyIndex = emptyIndex;
+            G = g;
+            H = 0;
+            Parent = parent;
+            MovedPos = movedPos;
+        }
+    }
+}
